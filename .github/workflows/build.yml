@@ -46,6 +46,9 @@ jobs:
           [Files]
           Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+          [Tasks]
+          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
           [Icons]
           Name: "{group}\Sendyra"; Filename: "{app}\Sendyra.exe"
           Name: "{autodesktop}\Sendyra"; Filename: "{app}\Sendyra.exe"; Tasks: desktopicon
@@ -92,12 +95,7 @@ jobs:
         run: |
           mkdir -p Sendyra.AppDir/usr/bin
           cp -r build/linux/* Sendyra.AppDir/usr/bin/
-          pip install Pillow
-          python - <<'PY'
-          from PIL import Image
-          img = Image.new("RGBA", (256, 256), (0, 150, 136, 255))
-          img.save("Sendyra.AppDir/sendyra.png")
-          PY
+          cp assets/sendyra.png Sendyra.AppDir/sendyra.png
           cat > Sendyra.AppDir/Sendyra.desktop <<'EOF'
           [Desktop Entry]
           Name=Sendyra
