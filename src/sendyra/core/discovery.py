@@ -4,7 +4,7 @@ import asyncio
 import socket
 from typing import Callable
 
-from zeroconf import ServiceListener, ServiceInfo, Zeroconf
+from zeroconf import InterfaceChoice, IPVersion, ServiceListener, ServiceInfo, Zeroconf
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
 from ..config import SERVICE_TYPE, get_local_ip
@@ -33,7 +33,7 @@ class Discovery(ServiceListener):
         self._service_names: dict[str, str] = {}  # service name -> peer id
 
     async def start(self) -> None:
-        self._azc = AsyncZeroconf()
+        self._azc = AsyncZeroconf(interfaces=InterfaceChoice.All, ip_version=IPVersion.V4Only)
         local_ip = get_local_ip()
         self._service_info = ServiceInfo(
             SERVICE_TYPE,
@@ -43,6 +43,8 @@ class Discovery(ServiceListener):
             properties={"id": self._device_id, "name": self._device_name},
         )
         await self._azc.async_register_service(self._service_info)
+        # Allow a short moment for the registration to be processed before browsing.
+        await asyncio.sleep(0.5)
         self._browser = AsyncServiceBrowser(self._azc.zeroconf, SERVICE_TYPE, self)
 
     async def stop(self) -> None:
@@ -60,11 +62,21 @@ class Discovery(ServiceListener):
     # -- ServiceListener callbacks (called on the asyncio event loop) --
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-        asyncio.ensure_future(self._resolve_service(zc, type_, name))
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+        loop.create_task(self._resolve_service(zc, type_, name))
 
     async def _resolve_service(self, zc: Zeroconf, type_: str, name: str) -> None:
         info = AsyncServiceInfo(type_, name)
-        if not await info.async_request(zc, timeout=3000):
+        # Try a few times: mDNS address records may arrive shortly after the PTR announcement.
+        for _ in range(2):
+            if await info.async_request(zc, timeout=3000):
+                break
+            await asyncio.sleep(0.5)
+        else:
             return
         props = {
             k.decode(): v.decode() if isinstance(v, bytes) else v
@@ -87,6 +99,7 @@ class Discovery(ServiceListener):
         self._on_peer_added(peer)
 
     def update_service(self, zc: Zeroconf, type_: str, name: str) -> None:
+        # Service update may indicate an address/TXT change. Re-resolve and re-add.
         self.add_service(zc, type_, name)
 
     def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:

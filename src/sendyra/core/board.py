@@ -30,8 +30,12 @@ class LocalBoard:
             return
         for entry in raw:
             item = BoardItem.from_dict(entry)
-            if item.kind == "file" and not self.file_path(item.id).exists():
-                continue
+            if item.kind == "file":
+                # Use entry data directly: file_path() reads from self._items,
+                # which is still empty while loading.
+                stored = self._files_dir / item.id / item.name
+                if not stored.exists():
+                    continue
             self._items[item.id] = item
 
     def _save(self) -> None:

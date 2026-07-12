@@ -36,16 +36,16 @@ class PeerRegistry:
         return [BoardItem.from_dict(entry) for entry in data.get("items", [])]
 
     async def fetch_all_boards(self) -> dict[str, list[BoardItem]]:
-        """Returns {peer_id: items}. Unreachable peers are dropped from the registry."""
+        """Returns {peer_id: items}. Unreachable peers are kept in the registry
+        so they can be retried on the next refresh; mDNS remove_service handles
+        permanent removal."""
         peers = list(self._peers.values())
         results = await asyncio.gather(
             *(self.fetch_board(p) for p in peers), return_exceptions=True
         )
         boards: dict[str, list[BoardItem]] = {}
         for peer, result in zip(peers, results):
-            if isinstance(result, BaseException):
-                self._peers.pop(peer.id, None)
-            else:
+            if not isinstance(result, BaseException):
                 boards[peer.id] = result
         return boards
 

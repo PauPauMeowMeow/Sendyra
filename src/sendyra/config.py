@@ -61,11 +61,27 @@ def set_device_name(name: str) -> None:
 
 def get_local_ip() -> str:
     """Best-effort detection of the LAN IP address."""
-    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
-        sock.connect(("8.8.8.8", 80))
-        return sock.getsockname()[0]
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.connect(("8.8.8.8", 80))
+            ip = sock.getsockname()[0]
+            if ip and not ip.startswith("127."):
+                return ip
+        except OSError:
+            pass
+        finally:
+            sock.close()
+    except Exception:
+        pass
+
+    try:
+        hostname = socket.gethostname()
+        for info in socket.getaddrinfo(hostname, None, socket.AF_INET):
+            ip = info[4][0]
+            if ip and not ip.startswith("127.") and not ip.startswith("0.0.0.0"):
+                return ip
     except OSError:
-        return "127.0.0.1"
-    finally:
-        sock.close()
+        pass
+
+    return "127.0.0.1"

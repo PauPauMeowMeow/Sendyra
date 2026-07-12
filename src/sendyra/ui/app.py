@@ -23,6 +23,9 @@ async def main(page: ft.Page) -> None:
     state.port = port
     await state.start_discovery()
 
+    # Refresh once to show local board immediately while peers are discovered.
+    await state.refresh()
+
     board_view = BoardView(page, state)
     share_view = ShareView(page, state)
     peers_view = PeersView(page, state)
