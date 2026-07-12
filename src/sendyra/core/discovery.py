@@ -8,6 +8,7 @@ from zeroconf import InterfaceChoice, IPVersion, ServiceListener, ServiceInfo, Z
 from zeroconf.asyncio import AsyncServiceBrowser, AsyncServiceInfo, AsyncZeroconf
 
 from ..config import SERVICE_TYPE, get_local_ip
+from .android import acquire_multicast_lock, release_multicast_lock
 from .models import Peer
 
 
@@ -31,6 +32,7 @@ class Discovery(ServiceListener):
         self._browser: AsyncServiceBrowser | None = None
         self._service_info: ServiceInfo | None = None
         self._service_names: dict[str, str] = {}  # service name -> peer id
+        self._multicast_lock = acquire_multicast_lock()
 
     async def start(self) -> None:
         self._azc = AsyncZeroconf(interfaces=InterfaceChoice.All, ip_version=IPVersion.V4Only)
@@ -58,6 +60,16 @@ class Discovery(ServiceListener):
         finally:
             await self._azc.async_close()
             self._azc = None
+            release_multicast_lock(self._multicast_lock)
+
+    async def re_announce(self) -> None:
+        """Re-register the service, e.g. when the app returns to foreground."""
+        if self._azc is None or self._service_info is None:
+            return
+        try:
+            await self._azc.async_register_service(self._service_info)
+        except Exception:
+            pass
 
     # -- ServiceListener callbacks (called on the asyncio event loop) --
 

@@ -20,11 +20,18 @@ company = "PauPauMeowMeow"
 [tool.flet.app]
 path = "src"
 
+[tool.flet.android]
+dependencies = ["pyjnius"]
+
 [tool.flet.android.permission]
 "android.permission.INTERNET" = true
 "android.permission.ACCESS_NETWORK_STATE" = true
 "android.permission.ACCESS_WIFI_STATE" = true
 "android.permission.CHANGE_WIFI_MULTICAST_STATE" = true
+
+[tool.flet.app.startup_screen]
+show = true
+message = "Starting Sendyra…"
 
 [tool.flet.macos]
 entitlement."com.apple.security.network.server" = true

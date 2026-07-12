@@ -19,13 +19,45 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install flet[all]==0.28.3
-      - run: flet build windows --no-rich-output
-      - name: Package
-        run: Compress-Archive -Path build/windows/* -DestinationPath Sendyra-windows.zip
+      - run: flet build windows --compile-app --cleanup-app --cleanup-packages --no-rich-output
+      - name: Install Inno Setup
+        run: choco install innosetup -y
+      - name: Create installer
+        shell: powershell
+        run: |
+          @'
+          #define MyAppName "Sendyra"
+          #define MyAppVersion "0.1.0"
+          #define MyAppPublisher "PauPauMeowMeow"
+          #define MyAppExeName "Sendyra.exe"
+
+          [Setup]
+          AppId={{7B2D6B1A-0F2A-4B3C-8D1E-2C3A4B5C6D7E}}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={autopf}\Sendyra
+          OutputBaseFilename=Sendyra-Windows-Setup
+          OutputDir=.
+          Compression=lzma2
+          SolidCompression=yes
+          ArchitecturesInstallIn64BitMode=x64
+
+          [Files]
+          Source: "build\windows\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{group}\Sendyra"; Filename: "{app}\Sendyra.exe"
+          Name: "{autodesktop}\Sendyra"; Filename: "{app}\Sendyra.exe"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\Sendyra.exe"; Description: "Launch Sendyra"; Flags: nowait postinstall skipifsilent
+          '@ | Set-Content -Encoding UTF8 Sendyra.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Sendyra.iss
       - uses: actions/upload-artifact@v4
         with:
           name: Sendyra-windows
-          path: Sendyra-windows.zip
+          path: Sendyra-Windows-Setup.exe
 
   build-macos:
     runs-on: macos-latest
@@ -35,15 +67,13 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install flet[all]==0.28.3
-      - run: flet build macos --no-rich-output
-      - name: Package
-        run: |
-          cd build/macos
-          zip -r ../../Sendyra-macos.zip Sendyra.app
+      - run: flet build macos --arch arm64 --compile-app --cleanup-app --cleanup-packages --no-rich-output
+      - name: Create DMG
+        run: hdiutil create -volname "Sendyra" -srcfolder "build/macos/Sendyra.app" -ov -format UDBZ Sendyra.dmg
       - uses: actions/upload-artifact@v4
         with:
           name: Sendyra-macos
-          path: Sendyra-macos.zip
+          path: Sendyra.dmg
 
   build-linux:
     runs-on: ubuntu-latest
@@ -57,13 +87,31 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y ninja-build libgtk-3-dev
       - run: pip install flet[all]==0.28.3
-      - run: flet build linux --no-rich-output
-      - name: Package
-        run: tar -czf Sendyra-linux.tar.gz -C build/linux .
+      - run: flet build linux --compile-app --cleanup-app --cleanup-packages --no-rich-output
+      - name: Create AppImage
+        run: |
+          mkdir -p Sendyra.AppDir/usr/bin
+          cp -r build/linux/* Sendyra.AppDir/usr/bin/
+          cat > Sendyra.AppDir/Sendyra.desktop <<'EOF'
+          [Desktop Entry]
+          Name=Sendyra
+          Exec=sendyra
+          Icon=sendyra
+          Type=Application
+          Categories=Utility;
+          EOF
+          cat > Sendyra.AppDir/AppRun <<'EOF'
+          #!/bin/sh
+          exec "$(dirname "$0")/usr/bin/sendyra" "$@"
+          EOF
+          chmod +x Sendyra.AppDir/AppRun
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+          chmod +x appimagetool
+          APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool Sendyra.AppDir Sendyra-x86_64.AppImage
       - uses: actions/upload-artifact@v4
         with:
           name: Sendyra-linux
-          path: Sendyra-linux.tar.gz
+          path: Sendyra-x86_64.AppImage
 
   build-android:
     runs-on: ubuntu-latest
@@ -77,7 +125,7 @@ jobs:
           distribution: temurin
           java-version: "17"
       - run: pip install flet[all]==0.28.3
-      - run: flet build apk --no-rich-output
+      - run: flet build apk --compile-app --cleanup-app --cleanup-packages --no-rich-output
       - name: Package
         run: cp build/apk/app-release.apk Sendyra-android.apk
       - uses: actions/upload-artifact@v4
@@ -95,19 +143,26 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install flet[all]==0.28.3
-      - run: flet build ipa --no-rich-output
-      - name: Package
+      - run: flet build ipa --compile-app --cleanup-app --cleanup-packages --no-rich-output
+      - name: Package IPA
         run: |
-          cd build/ipa
-          zip -r ../../Sendyra-ios.zip .
+          mkdir -p Payload
+          if ls build/ipa/*.ipa 1> /dev/null 2>&1; then
+            cp build/ipa/*.ipa Sendyra-ios.ipa
+          else
+            for xcarchive in build/ipa/*.xcarchive; do
+              cp -r "$xcarchive/Products/Applications/"*.app Payload/
+            done
+            zip -r Sendyra-ios.ipa Payload
+          fi
       - uses: actions/upload-artifact@v4
         with:
           name: Sendyra-ios
-          path: Sendyra-ios.zip
+          path: Sendyra-ios.ipa
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build-windows, build-macos, build-linux, build-android]
+    needs: [build-windows, build-macos, build-linux, build-android, build-ios]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -116,7 +171,11 @@ jobs:
         with:
           path: artifacts
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
-        with:
-          files: artifacts/*
-          generate_release_notes: true
+      - name: Create release and upload assets
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" --title "${{ github.ref_name }}" --generate-notes
+          for f in artifacts/*; do
+            gh release upload "${{ github.ref_name }}" "$f" --clobber || true
+          done

@@ -62,6 +62,15 @@ def set_device_name(name: str) -> None:
 def get_local_ip() -> str:
     """Best-effort detection of the LAN IP address."""
     try:
+        from .android import get_wifi_ip
+
+        ip = get_wifi_ip()
+        if ip and not ip.startswith("127."):
+            return ip
+    except Exception:
+        pass
+
+    try:
         sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
             sock.connect(("8.8.8.8", 80))

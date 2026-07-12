@@ -17,6 +17,21 @@ async def main(page: ft.Page) -> None:
 
     state = AppState()
 
+    # Show a spinner while the server and discovery are starting.
+    loading = ft.Container(
+        content=ft.Column(
+            [
+                ft.ProgressRing(scale=2, color=ft.Colors.TEAL),
+                ft.Text("Starting Sendyra…", size=16),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        ),
+        alignment=ft.alignment.center,
+        expand=True,
+    )
+    page.add(loading)
+
     runner, port = await start_server(
         state.board, state.device_id, state.device_name, DEFAULT_PORT
     )
@@ -57,11 +72,22 @@ async def main(page: ft.Page) -> None:
             )
         ],
     )
+
+    page.remove(loading)
     page.add(content)
 
     async def on_disconnect(_event) -> None:
         await state.stop()
         await runner.cleanup()
 
+    def on_lifecycle_change(event: ft.AppLifecycleStateChangeEvent) -> None:
+        # When the app returns to foreground, re-announce and refresh so
+        # Android devices pick up new peers after being suspended.
+        if event.state == ft.AppLifecycleState.RESUME:
+            page.run_task(state.refresh)
+            if state.discovery is not None:
+                page.run_task(state.discovery.re_announce)
+
     page.on_disconnect = on_disconnect
+    page.on_app_lifecycle_state_change = on_lifecycle_change
     page.run_task(state.refresh_loop)
