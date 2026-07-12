@@ -8,7 +8,7 @@ authors = [{ name = "PauPauMeowMeow" }]
 dependencies = [
     "flet==0.28.3",
     "aiohttp>=3.9",
-    "zeroconf>=0.132",
+    "zeroconf==0.39.4",
     "platformdirs>=4.0",
 ]
 
