@@ -57,10 +57,11 @@ jobs:
           Filename: "{app}\Sendyra.exe"; Description: "Launch Sendyra"; Flags: nowait postinstall skipifsilent
           '@ | Set-Content -Encoding UTF8 Sendyra.iss
           & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" Sendyra.iss
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: Sendyra-windows
           path: Sendyra-Windows-Setup.exe
+          archive: false
+          if-no-files-found: error
 
   build-macos:
     runs-on: macos-latest
@@ -73,10 +74,11 @@ jobs:
       - run: flet build macos --arch arm64 --compile-app --cleanup-app --cleanup-packages --no-rich-output
       - name: Create DMG
         run: hdiutil create -volname "Sendyra" -srcfolder "build/macos/Sendyra.app" -ov -format UDBZ Sendyra.dmg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: Sendyra-macos
           path: Sendyra.dmg
+          archive: false
+          if-no-files-found: error
 
   build-linux:
     runs-on: ubuntu-latest
@@ -95,7 +97,7 @@ jobs:
         run: |
           mkdir -p Sendyra.AppDir/usr/bin
           cp -r build/linux/* Sendyra.AppDir/usr/bin/
-          cp assets/sendyra.png Sendyra.AppDir/sendyra.png
+          cp assets/icon.png Sendyra.AppDir/sendyra.png
           cat > Sendyra.AppDir/Sendyra.desktop <<'EOF'
           [Desktop Entry]
           Name=Sendyra
@@ -112,10 +114,11 @@ jobs:
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
           chmod +x appimagetool
           APPIMAGE_EXTRACT_AND_RUN=1 ./appimagetool --no-appstream Sendyra.AppDir Sendyra-x86_64.AppImage
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: Sendyra-linux
           path: Sendyra-x86_64.AppImage
+          archive: false
+          if-no-files-found: error
 
   build-android:
     runs-on: ubuntu-latest
@@ -132,10 +135,11 @@ jobs:
       - run: flet build apk --compile-app --cleanup-app --cleanup-packages --no-rich-output
       - name: Package
         run: cp build/apk/app-release.apk Sendyra-android.apk
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: Sendyra-android
           path: Sendyra-android.apk
+          archive: false
+          if-no-files-found: error
 
   # iOS builds without code signing; installable only via sideload/TestFlight
   build-ios:
@@ -159,10 +163,11 @@ jobs:
             done
             zip -r Sendyra-ios.ipa Payload
           fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
-          name: Sendyra-ios
           path: Sendyra-ios.ipa
+          archive: false
+          if-no-files-found: warn
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
@@ -171,7 +176,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true

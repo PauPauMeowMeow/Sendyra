@@ -71,6 +71,18 @@ class Discovery(ServiceListener):
         except Exception:
             pass
 
+    async def rescan(self) -> None:
+        """Force the mDNS browser to re-query peers immediately."""
+        if self._browser is None:
+            return
+        try:
+            from zeroconf import current_time_millis
+
+            now = current_time_millis()
+            self._browser.reschedule_type(SERVICE_TYPE, now, now)
+        except Exception:
+            pass
+
     # -- ServiceListener callbacks (called on the asyncio event loop) --
 
     def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:

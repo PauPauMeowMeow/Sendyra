@@ -68,6 +68,16 @@ class AppState:
         self.display_items = items
         self._notify()
 
+    async def full_sync(self) -> None:
+        """Re-announce, re-scan mDNS, and re-fetch all boards."""
+        if self.discovery is not None:
+            try:
+                await self.discovery.re_announce()
+                await self.discovery.rescan()
+            except Exception:
+                pass
+        await self.refresh()
+
     async def refresh_loop(self) -> None:
         while True:
             try:
