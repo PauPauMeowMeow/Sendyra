@@ -1,0 +1,136 @@
+name: Build
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  PYTHON_VERSION: "3.12"
+  FLET_CLI_NO_RICH_OUTPUT: "1"
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: pip install flet[all]==0.28.3
+      - run: flet build windows --no-rich-output
+      - name: Package
+        run: Compress-Archive -Path build/windows/* -DestinationPath Sendyra-windows.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sendyra-windows
+          path: Sendyra-windows.zip
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: pip install flet[all]==0.28.3
+      - run: flet build macos --no-rich-output
+      - name: Package
+        run: |
+          cd build/macos
+          zip -r ../../Sendyra-macos.zip Sendyra.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sendyra-macos
+          path: Sendyra-macos.zip
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgtk-3-dev
+      - run: pip install flet[all]==0.28.3
+      - run: flet build linux --no-rich-output
+      - name: Package
+        run: tar -czf Sendyra-linux.tar.gz -C build/linux .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sendyra-linux
+          path: Sendyra-linux.tar.gz
+
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: pip install flet[all]==0.28.3
+      - run: flet build apk --no-rich-output
+      - name: Package
+        run: cp build/apk/app-release.apk Sendyra-android.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sendyra-android
+          path: Sendyra-android.apk
+
+  # iOS builds without code signing; installable only via sideload/TestFlight
+  build-ios:
+    runs-on: macos-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: pip install flet[all]==0.28.3
+      - run: flet build ipa --no-rich-output
+      - name: Package
+        run: |
+          cd build/ipa
+          zip -r ../../Sendyra-ios.zip .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sendyra-ios
+          path: Sendyra-ios.zip
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build-windows, build-macos, build-linux, build-android]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          generate_release_notes: true

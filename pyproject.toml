@@ -1,0 +1,31 @@
+[project]
+name = "sendyra"
+version = "0.1.0"
+description = "Share text and files across devices on your local network"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [{ name = "PauPauMeowMeow" }]
+dependencies = [
+    "flet==0.28.3",
+    "aiohttp>=3.9",
+    "zeroconf>=0.132",
+    "platformdirs>=4.0",
+]
+
+[tool.flet]
+org = "com.paupaumeowmeow"
+product = "Sendyra"
+company = "PauPauMeowMeow"
+
+[tool.flet.app]
+path = "src"
+
+[tool.flet.android.permission]
+"android.permission.INTERNET" = true
+"android.permission.ACCESS_NETWORK_STATE" = true
+"android.permission.ACCESS_WIFI_STATE" = true
+"android.permission.CHANGE_WIFI_MULTICAST_STATE" = true
+
+[tool.flet.macos]
+entitlement."com.apple.security.network.server" = true
+entitlement."com.apple.security.network.client" = true
